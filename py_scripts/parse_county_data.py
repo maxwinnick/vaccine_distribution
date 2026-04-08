@@ -8,7 +8,7 @@ _AUG_DIR = os.path.join(os.path.dirname(__file__), "..", "county_data", "augment
 def parse_county_data(filepath, state_fips):
     """
     Read demographics CSV with columns: FIPS, name, state, population, lat, lon.
-    Optional: area_sqmi (for density maps). FIPS zero-padded to 5 digits.
+    FIPS are zero-padded to 5 digits.
     """
     state_fips = str(state_fips).zfill(2)[:2]
     rows = {}
@@ -28,8 +28,6 @@ def parse_county_data(filepath, state_fips):
         pcol = col("population", "popestimate2025", "pop")
         lat_col = col("lat", "intptlat", "latitude")
         lon_col = col("lon", "intptlong", "longitude")
-        acol = col("area_sqmi", "aland_sqmi")
-
         if not all([fcol, ncol, scol, pcol, lat_col, lon_col]):
             raise ValueError(
                 "CSV must include FIPS, name, state, population, lat, lon (flexible column names)."
@@ -59,11 +57,6 @@ def parse_county_data(filepath, state_fips):
                 "lat": lat,
                 "lon": lon,
             }
-            if acol and row.get(acol, "").strip():
-                try:
-                    entry["area_sqmi"] = float(row[acol])
-                except (TypeError, ValueError):
-                    pass
             rows[fp] = entry
 
     os.makedirs(_AUG_DIR, exist_ok=True)
