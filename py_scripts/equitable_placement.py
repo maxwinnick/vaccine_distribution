@@ -1,35 +1,17 @@
-import math
-import time
+import time as tm
 
 from gurobipy import GRB, Model, quicksum
+from helper_functions import _haversine_miles
 
+# Solve the equitable placement problem
+def solve_equitable(county_data, k):
 
-def _haversine_miles(lat1, lon1, lat2, lon2):
-    """Great-circle distance in miles."""
-    rlat1, rlon1 = math.radians(lat1), math.radians(lon1)
-    rlat2, rlon2 = math.radians(lat2), math.radians(lon2)
-    dlat = rlat2 - rlat1
-    dlon = rlon2 - rlon1
-    a = (
-        math.sin(dlat / 2) ** 2
-        + math.cos(rlat1) * math.cos(rlat2) * math.sin(dlon / 2) ** 2
-    )
-    c = 2 * math.asin(min(1.0, math.sqrt(a)))
-    return 3958.7613 * c
-
-
-def solve_equitable(adj, county_data, k):
-    """
-    p-median style: at most k centers, minimize population-weighted distance to assigned center.
-    adj is unused but kept for a uniform API with solve_min_coverage.
-
-    Returns (center FIPS list, objective, solve time seconds, assigned dict county_fips -> center_fips).
-    """
-    _ = adj
+    # Sort the counties by FIPS and create a dictionary to map FIPS to index
     counties = sorted(county_data.keys())
     n = len(counties)
     idx = {fips: i for i, fips in enumerate(counties)}
 
+    # Compute pairwise county-to-county distances (miles).
     dist = [[0.0] * n for _ in range(n)]
     for i, fi in enumerate(counties):
         li, lo = county_data[fi]["lat"], county_data[fi]["lon"]
@@ -37,38 +19,56 @@ def solve_equitable(adj, county_data, k):
             lj, loj = county_data[fj]["lat"], county_data[fj]["lon"]
             dist[i][j] = _haversine_miles(li, lo, lj, loj)
 
+    # Population weight for each county in index order.
     pop = [county_data[fi]["population"] for fi in counties]
 
-    m = Model("equitable_p_median")
-    m.setParam("OutputFlag", 0)
-    y = m.addVars(n, vtype=GRB.BINARY, name="y")
-    z = m.addVars(n, n, vtype=GRB.BINARY, name="z")
+    # Sets and variables:
+    # y[j] = 1 if county j is opened as a center
+    # z[i,j] = 1 if county i is assigned to center j
+    IPmod = Model("equitable_p_median")
+    IPmod.setParam("OutputFlag", 0)
+    y = IPmod.addVars(n, vtype=GRB.BINARY, name="y")
+    z = IPmod.addVars(n, n, vtype=GRB.BINARY, name="z")
 
-    m.setObjective(
+    # Objective: Minimize total population-weighted assignment distance.
+    IPmod.setObjective(
         quicksum(pop[i] * dist[i][j] * z[i, j] for i in range(n) for j in range(n)),
         GRB.MINIMIZE,
     )
-    m.addConstr(quicksum(y[j] for j in range(n)) <= k)
-    m.addConstr(quicksum(y[j] for j in range(n)) >= 1)
+
+    # Constraints: Open at most k centers, and at least one center.
+    IPmod.addConstr(quicksum(y[j] for j in range(n)) <= k)
+    IPmod.addConstr(quicksum(y[j] for j in range(n)) >= 1)
+
+    # Constraints: Every county must be assigned to exactly one center.
     for i in range(n):
-        m.addConstr(quicksum(z[i, j] for j in range(n)) == 1)
+        IPmod.addConstr(quicksum(z[i, j] for j in range(n)) == 1)
+
+    # Constraints: Counties can only be assigned to centers that are opened.
     for i in range(n):
         for j in range(n):
-            m.addConstr(z[i, j] <= y[j])
+            IPmod.addConstr(z[i, j] <= y[j])
 
-    t0 = time.perf_counter()
-    m.optimize()
-    elapsed = time.perf_counter() - t0
+    # Run Optimization and record solve time
+    t0 = tm.time()
+    IPmod.optimize()
+    elapsed = tm.time() - t0
 
-    if m.Status != GRB.OPTIMAL:
-        raise RuntimeError(f"Gurobi status {m.Status} (expected OPTIMAL)")
+    ysol = IPmod.getAttr("x", y)
+    zsol = IPmod.getAttr("x", z)
 
-    centers = [counties[j] for j in range(n) if y[j].X > 0.5]
+    # Extract selected centers from y.
+    centers = []
+    for j in range(n):
+        if ysol[j] > 0.5:
+            centers.append(counties[j])
+
+    # Build county -> center assignment map from z.
     assigned = {}
     for i in range(n):
         for j in range(n):
-            if z[i, j].X > 0.5:
+            if zsol[i, j] > 0.5:
                 assigned[counties[i]] = counties[j]
                 break
 
-    return centers, float(m.ObjVal), elapsed, assigned
+    return centers, float(IPmod.ObjVal), elapsed, assigned

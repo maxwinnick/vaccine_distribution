@@ -1,31 +1,36 @@
-import time
+import time as tm
 
 from gurobipy import GRB, Model, quicksum
 
-
+# Solve the minimum coverage problem
 def solve_min_coverage(adj, county_data):
-    """
-    Minimum dominating set: choose centers so each county is covered by itself or a neighbor.
-    Returns (list of center FIPS, objective value, solve time seconds).
-    """
+    # Sort the counties by FIPS and create a dictionary to map FIPS to index
     counties = sorted(set(adj.keys()) | set(county_data.keys()))
     county_set = set(counties)
-    adj_clean = {k: [n for n in adj.get(k, []) if n in county_set] for k in counties}
 
-    m = Model("min_coverage_domination")
-    m.setParam("OutputFlag", 0)
-    x = m.addVars(counties, vtype=GRB.BINARY, name="x")
-    m.setObjective(quicksum(x[c] for c in counties), GRB.MINIMIZE)
+    # Sets and variables:
+    # x[i] = 1 if county i is opened as a center
+    IPmod = Model("min_coverage")
+    IPmod.setParam("OutputFlag", 0)
+    x = IPmod.addVars(counties, vtype=GRB.BINARY, name="x")
+
+    # Objective: Minimize the number of centers
+    IPmod.setObjective(quicksum(x[c] for c in counties), GRB.MINIMIZE)
+
+    # Constraints: Each county must either be a center or be adjacent to a center
     for i in counties:
-        nbr = adj_clean[i]
-        m.addConstr(x[i] + quicksum(x[j] for j in nbr) >= 1)
+        nbr = adj[i]
+        IPmod.addConstr(x[i] + quicksum(x[j] for j in nbr) >= 1)
 
-    t0 = time.perf_counter()
-    m.optimize()
-    elapsed = time.perf_counter() - t0
+    # Run Optimization and record solve time
+    t0 = tm.time()
+    IPmod.optimize()
+    elapsed = tm.time() - t0
 
-    if m.Status != GRB.OPTIMAL:
-        raise RuntimeError(f"Gurobi status {m.Status} (expected OPTIMAL)")
+    xsol = IPmod.getAttr("x", x)
+    centers = []
+    for c in counties:
+        if xsol[c] > 0.5:
+            centers.append(c)
 
-    centers = [c for c in counties if x[c].X > 0.5]
-    return centers, float(m.ObjVal), elapsed
+    return centers, float(IPmod.ObjVal), elapsed
