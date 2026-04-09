@@ -1,5 +1,4 @@
 import math
-
 import matplotlib.pyplot as plt
 
 
@@ -82,15 +81,24 @@ def plot_centers(state_shp, cdata, centers, title_suffix):
     center_fips = sorted(set(centers) & set(cdata))
     centroids = state_shp[state_shp["GEOID"].isin(center_fips)].copy()
     centroids["pt"] = centroids.geometry.centroid
-
     fig, ax = plt.subplots(figsize=(12, 10))
     state_shp.plot(ax=ax, color="lightgray", edgecolor="black", linewidth=0.5)
 
+    # Plot the centroids of the selected center counties
     for _, row in centroids.iterrows():
         fips = row["GEOID"]
         pt = row["pt"]
         ax.scatter(pt.x, pt.y, s=45, c="red", edgecolors="black", linewidths=0.5)
-        ax.annotate(cdata[fips]["name"], (pt.x, pt.y), fontsize=7, ha="center")
+        
+        # Annotate county name above the point, in bold font
+        ax.annotate(
+            cdata[fips]["name"],
+            (pt.x, pt.y),
+            fontsize=7,
+            ha="center",
+            va="bottom",
+            fontweight="bold"
+        )
 
     state_name = next(iter(cdata.values()))["state"]
     ax.set_title(f"Vaccine centers - {state_name} ({title_suffix})")
