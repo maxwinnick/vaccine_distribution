@@ -4,6 +4,9 @@ import os
 
 from helper_functions import AUG_DIR, state_fips_2
 
+# Expected CSV: county_data/uscounties.csv (SimpleMaps-style headers)
+# county, county_ascii, county_full, county_fips, state_id, state_name, lat, lng, population
+
 
 def parse_county_data(filepath, state_fips):
     state_fips = state_fips_2(state_fips)
@@ -14,17 +17,17 @@ def parse_county_data(filepath, state_fips):
         reader = csv.DictReader(f)
 
         for row in reader:
-            county_fips = row["FIPS"].strip().zfill(5)
+            county_fips = row["county_fips"].strip().zfill(5)
             if county_fips[:2] != state_fips:
                 continue
 
-            population = int(row["population"])
-            latitude = float(row["lat"])
-            longitude = float(row["lon"])
+            population = int(row["population"].strip())
+            latitude = float(row["lat"].strip())
+            longitude = float(row["lng"].strip())
 
             county_data[county_fips] = {
-                "name": row["name"].strip(),
-                "state": row["state"].strip(),
+                "name": row["county_full"].strip(),
+                "state": row["state_name"].strip(),
                 "population": population,
                 "lat": latitude,
                 "lon": longitude,
