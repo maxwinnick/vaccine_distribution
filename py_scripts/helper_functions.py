@@ -1,7 +1,6 @@
 import math
 import matplotlib.pyplot as plt
 
-
 STATE_FIPS_TO_NAME = {
     "01": "Alabama",
     "02": "Alaska",
@@ -77,6 +76,7 @@ def _haversine_miles(lat1, lon1, lat2, lon2):
 
 
 def plot_centers(state_shp, cdata, centers, title_suffix):
+
     # Plot the state map and mark selected center counties.
     center_fips = sorted(set(centers) & set(cdata))
     centroids = state_shp[state_shp["GEOID"].isin(center_fips)].copy()

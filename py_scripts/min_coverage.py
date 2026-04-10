@@ -6,7 +6,6 @@ from gurobipy import GRB, Model, quicksum
 def solve_min_coverage(adj, county_data):
     # Sort the counties by FIPS and create a dictionary to map FIPS to index
     counties = sorted(set(adj.keys()) | set(county_data.keys()))
-    county_set = set(counties)
 
     # Sets and variables:
     # x[i] = 1 if county i is opened as a center
