@@ -2,9 +2,9 @@ import csv
 import json
 import os
 
-from helper_functions import AUG_DIR, state_fips_2
+from helper_functions import AUG_DIR, normalize_county_fips, state_fips_2
 
-# Expected CSV: county_data/uscounties.csv (SimpleMaps-style headers)
+# Expected CSV: county_data/uscounties.csv
 # county, county_ascii, county_full, county_fips, state_id, state_name, lat, lng, population
 
 
@@ -17,7 +17,7 @@ def parse_county_data(filepath, state_fips):
         reader = csv.DictReader(f)
 
         for row in reader:
-            county_fips = row["county_fips"].strip().zfill(5)
+            county_fips = normalize_county_fips(row["county_fips"].strip())
             if county_fips[:2] != state_fips:
                 continue
 

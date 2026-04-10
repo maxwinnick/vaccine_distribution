@@ -4,7 +4,7 @@ import os
 import geopandas as gpd
 from libpysal import weights
 
-from helper_functions import AUG_DIR, state_fips_2
+from helper_functions import AUG_DIR, normalize_county_fips, state_fips_2
 
 # Census cartographic county shapefile (500k)
 _DEFAULT_COUNTY_SHP = os.path.join(
@@ -20,10 +20,10 @@ def _neighbors_dict_from_queen(gdf, w):
     # Map each county FIPS to sorted neighbor FIPS (Queen contiguity; gdf index 0..n-1).
     adjacency_map = {}
     for oid in w.id_order:
-        fid = str(gdf.at[oid, "_county_fips"]).zfill(5)
+        fid = normalize_county_fips(gdf.at[oid, "_county_fips"])
         nbrs = w.neighbors[oid]
         adjacency_map[fid] = sorted(
-            str(gdf.at[int(j), "_county_fips"]).zfill(5) for j in nbrs
+            normalize_county_fips(gdf.at[int(j), "_county_fips"]) for j in nbrs
         )
     return dict(sorted(adjacency_map.items()))
 
@@ -34,7 +34,7 @@ def parse_adjacency(state_fips):
 
     sf = state_fips_2(state_fips)
     gdf = gdf[gdf["STATEFP"] == sf].copy()
-    gdf["_county_fips"] = gdf["GEOID"].astype(str).str.zfill(5)
+    gdf["_county_fips"] = gdf["GEOID"].astype(str).map(normalize_county_fips)
 
     gdf = gdf.to_crs(5070)
     gdf = gdf.reset_index(drop=True)

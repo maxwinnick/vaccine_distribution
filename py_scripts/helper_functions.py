@@ -13,6 +13,10 @@ def state_fips_2(state_fips):
     return str(state_fips).zfill(2)[:2]
 
 
+def normalize_county_fips(county_fips):
+    return str(county_fips).zfill(5)[:5]
+
+
 def require_optimal(model):
     if model.Status != GRB.OPTIMAL:
         raise RuntimeError(
@@ -75,6 +79,17 @@ STATE_FIPS_TO_NAME = {
 }
 
 
+STATE_NAME_TO_FIPS = {name: fips for fips, name in STATE_FIPS_TO_NAME.items()}
+
+
+def state_name_to_fips(state_name):
+    try:
+        return STATE_NAME_TO_FIPS[state_name]
+    except KeyError as exc:
+        choices = ", ".join(sorted(STATE_NAME_TO_FIPS))
+        raise ValueError(f"Unknown state name '{state_name}'. Expected one of: {choices}") from exc
+
+
 def _haversine_miles(lat1, lon1, lat2, lon2):
     # Radius of Earth in miles
     R = 3958.7613
@@ -94,7 +109,7 @@ def _haversine_miles(lat1, lon1, lat2, lon2):
     return R * c
 
 
-def plot_centers(state_shp, cdata, centers, title_suffix):
+def plot_centers(state_shp, cdata, centers, title_suffix, pad_frac=0.0):
 
     # Plot the state map and mark selected center counties.
     center_fips = sorted(set(centers) & set(cdata))
@@ -105,7 +120,7 @@ def plot_centers(state_shp, cdata, centers, title_suffix):
 
     # Plot the centroids of the selected center counties
     for _, row in centroids.iterrows():
-        fips = str(row["GEOID"]).zfill(5)
+        fips = normalize_county_fips(row["GEOID"])
         pt = row["pt"]
         ax.scatter(pt.x, pt.y, s=45, c="red", edgecolors="black", linewidths=0.5)
 
@@ -121,5 +136,15 @@ def plot_centers(state_shp, cdata, centers, title_suffix):
 
     state_name = next(iter(cdata.values()))["state"]
     ax.set_title(f"Vaccine centers - {state_name} ({title_suffix})")
+    # Keep full state extent visible; optional tiny padding.
+    minx, miny, maxx, maxy = state_shp.total_bounds
+    dx = max(maxx - minx, 1e-9)
+    dy = max(maxy - miny, 1e-9)
+    pad_frac = max(float(pad_frac), 0.0)
+    padx = pad_frac * dx
+    pady = pad_frac * dy
+    ax.set_xlim(minx - padx, maxx + padx)
+    ax.set_ylim(miny - pady, maxy + pady)
+    ax.set_aspect("equal", adjustable="box")
     ax.axis("off")
     plt.show()
