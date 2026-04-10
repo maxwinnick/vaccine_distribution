@@ -6,7 +6,7 @@ from libpysal import weights
 
 from helper_functions import AUG_DIR, state_fips_2
 
-# Census cartographic county shapefile (500k); static layout under county_data/
+# Census cartographic county shapefile (500k)
 _DEFAULT_COUNTY_SHP = os.path.join(
     os.path.dirname(__file__),
     "..",

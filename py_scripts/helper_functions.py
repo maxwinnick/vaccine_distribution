@@ -97,17 +97,8 @@ def _haversine_miles(lat1, lon1, lat2, lon2):
 def plot_centers(state_shp, cdata, centers, title_suffix):
 
     # Plot the state map and mark selected center counties.
-    center_fips = sorted({str(f).zfill(5) for f in centers} & set(cdata))
-    geo_in_layer = set(state_shp["GEOID"].astype(str).str.zfill(5))
-    missing_geo = sorted(set(center_fips) - geo_in_layer)
-    if missing_geo:
-        warnings.warn(
-            "Some center FIPS are not present on state_shp GEOID and will not be plotted: "
-            + ", ".join(missing_geo),
-            UserWarning,
-            stacklevel=2,
-        )
-    centroids = state_shp[state_shp["GEOID"].astype(str).str.zfill(5).isin(center_fips)].copy()
+    center_fips = sorted(set(centers) & set(cdata))
+    centroids = state_shp[state_shp["GEOID"].isin(center_fips)].copy()
     centroids["pt"] = centroids.geometry.centroid
     fig, ax = plt.subplots(figsize=(12, 10))
     state_shp.plot(ax=ax, color="lightgray", edgecolor="black", linewidth=0.5)
