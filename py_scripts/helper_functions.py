@@ -1,5 +1,24 @@
 import math
+import os
+import warnings
+
 import matplotlib.pyplot as plt
+from gurobipy import GRB
+
+# JSON outputs from parse_adjacency / parse_county_data
+AUG_DIR = os.path.join(os.path.dirname(__file__), "..", "county_data", "augmented_data")
+
+
+def state_fips_2(state_fips):
+    return str(state_fips).zfill(2)[:2]
+
+
+def require_optimal(model):
+    if model.Status != GRB.OPTIMAL:
+        raise RuntimeError(
+            f"Gurobi finished with status {model.Status} (expected OPTIMAL)"
+        )
+
 
 STATE_FIPS_TO_NAME = {
     "01": "Alabama",
@@ -78,18 +97,27 @@ def _haversine_miles(lat1, lon1, lat2, lon2):
 def plot_centers(state_shp, cdata, centers, title_suffix):
 
     # Plot the state map and mark selected center counties.
-    center_fips = sorted(set(centers) & set(cdata))
-    centroids = state_shp[state_shp["GEOID"].isin(center_fips)].copy()
+    center_fips = sorted({str(f).zfill(5) for f in centers} & set(cdata))
+    geo_in_layer = set(state_shp["GEOID"].astype(str).str.zfill(5))
+    missing_geo = sorted(set(center_fips) - geo_in_layer)
+    if missing_geo:
+        warnings.warn(
+            "Some center FIPS are not present on state_shp GEOID and will not be plotted: "
+            + ", ".join(missing_geo),
+            UserWarning,
+            stacklevel=2,
+        )
+    centroids = state_shp[state_shp["GEOID"].astype(str).str.zfill(5).isin(center_fips)].copy()
     centroids["pt"] = centroids.geometry.centroid
     fig, ax = plt.subplots(figsize=(12, 10))
     state_shp.plot(ax=ax, color="lightgray", edgecolor="black", linewidth=0.5)
 
     # Plot the centroids of the selected center counties
     for _, row in centroids.iterrows():
-        fips = row["GEOID"]
+        fips = str(row["GEOID"]).zfill(5)
         pt = row["pt"]
         ax.scatter(pt.x, pt.y, s=45, c="red", edgecolors="black", linewidths=0.5)
-        
+
         # Annotate county name above the point, in bold font
         ax.annotate(
             cdata[fips]["name"],
