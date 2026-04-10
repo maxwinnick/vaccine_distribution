@@ -2,32 +2,38 @@ import time as tm
 
 from gurobipy import GRB, Model, quicksum
 
-from helper_functions import require_optimal
+from helper_functions import _nearest_adjacent_center, require_optimal
 
 
 def solve_min_coverage(adj, county_data):
     counties = sorted(set(adj.keys()) | set(county_data.keys()))
 
-    IPmod = Model("min_coverage")
-    IPmod.setParam("OutputFlag", 0)
-    x = IPmod.addVars(counties, vtype=GRB.BINARY, name="x")
+    model = Model("min_coverage")
+    model.setParam("OutputFlag", 0)
+    x = model.addVars(counties, vtype=GRB.BINARY, name="x")
 
-    IPmod.setObjective(quicksum(x[c] for c in counties), GRB.MINIMIZE)
+    model.setObjective(quicksum(x[county] for county in counties), GRB.MINIMIZE)
 
-    for i in counties:
-        nbr = adj.get(i, [])
-        IPmod.addConstr(x[i] + quicksum(x[j] for j in nbr) >= 1)
+    for county in counties:
+        neighbors = adj.get(county, [])
+        # Every county is covered by itself or by one adjacent center.
+        model.addConstr(x[county] + quicksum(x[neighbor] for neighbor in neighbors) >= 1)
 
     t0 = tm.time()
-    IPmod.optimize()
+    model.optimize()
     elapsed = tm.time() - t0
 
-    require_optimal(IPmod)
+    require_optimal(model)
 
-    xsol = IPmod.getAttr("x", x)
+    x_solution = model.getAttr("x", x)
     centers = []
-    for c in counties:
-        if xsol[c] > 0.5:
-            centers.append(c)
+    for county in counties:
+        if x_solution[county] > 0.5:
+            centers.append(county)
 
-    return centers, float(IPmod.ObjVal), elapsed
+    centers_set = set(centers)
+    assigned = {}
+    for fips in sorted(county_data.keys()):
+        assigned[fips] = _nearest_adjacent_center(fips, centers_set, adj, county_data)
+
+    return centers, float(model.ObjVal), elapsed, assigned

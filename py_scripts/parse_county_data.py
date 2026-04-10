@@ -9,7 +9,7 @@ from helper_functions import AUG_DIR, normalize_county_fips, state_fips_2
 
 
 def parse_county_data(filepath, state_fips):
-    state_fips = state_fips_2(state_fips)
+    state_code = state_fips_2(state_fips)
 
     county_data = {}
 
@@ -18,9 +18,10 @@ def parse_county_data(filepath, state_fips):
 
         for row in reader:
             county_fips = normalize_county_fips(row["county_fips"].strip())
-            if county_fips[:2] != state_fips:
+            if county_fips[:2] != state_code:
                 continue
 
+            # Parse and normalize core numeric fields once.
             population = int(row["population"].strip())
             latitude = float(row["lat"].strip())
             longitude = float(row["lng"].strip())
@@ -33,9 +34,12 @@ def parse_county_data(filepath, state_fips):
                 "lon": longitude,
             }
 
+    if not county_data:
+        raise ValueError(f"No counties found for state FIPS {state_code}")
+
     os.makedirs(AUG_DIR, exist_ok=True)
 
-    out_path = os.path.join(AUG_DIR, f"county_data_{state_fips}.json")
+    out_path = os.path.join(AUG_DIR, f"county_data_{state_code}.json")
 
     with open(out_path, "w", encoding="utf-8") as out:
         json.dump(county_data, out, indent=2)
@@ -44,9 +48,9 @@ def parse_county_data(filepath, state_fips):
 
 
 def load_county_data(state_fips):
-    state_fips = state_fips_2(state_fips)
+    state_code = state_fips_2(state_fips)
 
-    path = os.path.join(AUG_DIR, f"county_data_{state_fips}.json")
+    path = os.path.join(AUG_DIR, f"county_data_{state_code}.json")
 
     with open(path, encoding="utf-8") as f:
         return json.load(f)

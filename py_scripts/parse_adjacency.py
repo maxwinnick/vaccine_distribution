@@ -17,13 +17,14 @@ _DEFAULT_COUNTY_SHP = os.path.join(
 
 
 def _neighbors_dict_from_queen(gdf, w):
-    # Map each county FIPS to sorted neighbor FIPS (Queen contiguity; gdf index 0..n-1).
+    # Map each county FIPS to sorted neighbor FIPS (Queen contiguity).
     adjacency_map = {}
-    for oid in w.id_order:
-        fid = normalize_county_fips(gdf.at[oid, "_county_fips"])
-        nbrs = w.neighbors[oid]
-        adjacency_map[fid] = sorted(
-            normalize_county_fips(gdf.at[int(j), "_county_fips"]) for j in nbrs
+    for origin_id in w.id_order:
+        county_fips = normalize_county_fips(gdf.at[origin_id, "_county_fips"])
+        neighbor_ids = w.neighbors[origin_id]
+        adjacency_map[county_fips] = sorted(
+            normalize_county_fips(gdf.at[int(neighbor_id), "_county_fips"])
+            for neighbor_id in neighbor_ids
         )
     return dict(sorted(adjacency_map.items()))
 
@@ -32,8 +33,8 @@ def parse_adjacency(state_fips):
     # Within-state Queen adjacency from Census polygons; projected to EPSG:5070 for weights.
     gdf = gpd.read_file(_DEFAULT_COUNTY_SHP)
 
-    sf = state_fips_2(state_fips)
-    gdf = gdf[gdf["STATEFP"] == sf].copy()
+    state_code = state_fips_2(state_fips)
+    gdf = gdf[gdf["STATEFP"] == state_code].copy()
     gdf["_county_fips"] = gdf["GEOID"].astype(str).map(normalize_county_fips)
 
     gdf = gdf.to_crs(5070)
@@ -45,10 +46,23 @@ def parse_adjacency(state_fips):
 
     os.makedirs(AUG_DIR, exist_ok=True)
 
-    out_path = os.path.join(AUG_DIR, f"adjacency_{sf}.json")
+    out_path = os.path.join(AUG_DIR, f"adjacency_{state_code}.json")
 
     with open(out_path, "w", encoding="utf-8") as out:
         json.dump(adjacency_map, out, indent=2)
+
+    county_path = os.path.join(AUG_DIR, f"county_data_{state_code}.json")
+    with open(county_path, encoding="utf-8") as f:
+        county_data = json.load(f)
+    adj_keys = set(adjacency_map.keys())
+    cd_keys = set(county_data.keys())
+    if adj_keys != cd_keys:
+        only_adj = sorted(adj_keys - cd_keys)
+        only_cd = sorted(cd_keys - adj_keys)
+        raise ValueError(
+            "Adjacency county FIPS keys do not match county_data JSON: "
+            f"only_in_adjacency={only_adj}, only_in_county_data={only_cd}"
+        )
 
     return adjacency_map
 
